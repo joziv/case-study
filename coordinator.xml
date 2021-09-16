@@ -1,4 +1,6 @@
-<coordinator-app name="BI-updatePartnerClicks" frequency="00 10 * * *"
+<coordinator-app 
+  name="BI-updatePartnerClicks" 
+  frequency="00 10 * * *"
   start="${coord_start_date}T00:00Z" 
   end="2100-01-01T00:00Z" 
   timezone="UTC"
