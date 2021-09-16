@@ -1,0 +1,65 @@
+
+<workflow-app 
+  name="BI_updateParterClicks" 
+  xmlns="uri:oozie:workflow:0.4">
+<credentials>
+  <credential 
+    name="hcat-trivago" 
+    type="hcat-trivago" />
+</credentials> 
+
+    <start to="hive_partner_clicks_daily"/>
+    
+    <action name="hive_partner_clicks_daily" cred="hcat-trivago">
+        <hive xmlns="uri:oozie:hive-action:0.2">
+            <job-tracker>${jobTracker}</job-tracker>
+            <name-node>${nameNode}</name-node>
+              <job-xml>/data/hive/hive-site-tez.xml</job-xml>
+            <script>hive_partner_clicks_daily.hql</script>
+              <param>crunchDate=${crunchDate}</param>
+        </hive>
+        <ok to="impala_refresh"/>
+        <error to="slack_then_kill"/>
+    </action>
+
+    <action name="impala_refresh">
+        <java>
+        <job-tracker>${jobTracker}</job-tracker>
+        <name-node>${nameNode}</name-node>
+        <main-class>com.trivago.oozie.action.ImpalaQueryProducer</main-class>
+        <arg>COMPUTE_INCREMENTAL</arg>
+        <!-- query type: REFRESH, INVALIDATE, COMPUTE, COMPUTE_INCREMENTAL -->
+        <arg>jversfeld.partner_clicks_daily</arg>
+        <arg>ymd=${crunchDate}</arg>
+        <file>/user/kafka/lib/oozie-action-FIXED-all.jar</file>
+        </java>
+        <ok to="end"/>
+        <error to="slack_then_kill"/>
+    </action>
+    
+    <action name="slack_then_kill">
+      <sub-workflow>
+        <app-path>${nameNode}/user/BI/hadoop-wf/co_genericTools/wf_sendSlack
+          </app-path>
+        <propagate-configuration/>
+        <configuration>
+          <property>
+            <name>slackChannel</name>
+            <value>si-notifications</value>
+          </property>
+          <property>
+            <name>slackText</name>
+            <value>Workflow ${wf:name()} failed.
+                   More details in : http://mgmt1.hadoop.trivago.com:8889/oozie/list_oozie_workflow/${wf:id()}/</value>
+          </property>
+        </configuration>
+      </sub-workflow>
+      <ok to="kill" />
+      <error to="kill" />
+    </action>  
+
+    <kill name="kill">
+        <message>Action failed, error message[${wf:errorMessage(wf:lastErrorNode())}]</message>
+    </kill>
+    <end name="end"/>
+</workflow-app>
